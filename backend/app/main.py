@@ -4,7 +4,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import health
+from app.api.routers import health, matches, players, rankings
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 
@@ -30,10 +30,13 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
-# Todas as rotas de negócio vivem sob /api. Os routers de jogadores, partidas,
-# rankings, dashboard e autenticação entram aqui nas fases seguintes.
+# Todas as rotas de negócio vivem sob /api. Os endpoints de escrita e o
+# dashboard entram nas fases seguintes.
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
+api_router.include_router(players.router)
+api_router.include_router(matches.router)
+api_router.include_router(rankings.router)
 app.include_router(api_router)
 
 # Mesmo health sem o prefixo, para o healthcheck do container e para o hábito

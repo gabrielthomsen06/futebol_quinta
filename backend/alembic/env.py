@@ -9,14 +9,17 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app import models  # noqa: F401 — registra as tabelas no metadata
 from app.core.config import settings
 from app.db.base import Base
 
-# Os models precisam ser importados para registrar as tabelas no metadata.
-# A partir da Fase 3: from app import models  # noqa: F401
-
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# Normalmente a URL vem do ambiente. Mas quando o Alembic é chamado por código
+# — a suíte de testes cria um banco próprio e aplica as migrations nele — a URL
+# já vem definida e precisa ganhar do ambiente.
+_url_definida = config.get_main_option("sqlalchemy.url", None)
+config.set_main_option("sqlalchemy.url", _url_definida or settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

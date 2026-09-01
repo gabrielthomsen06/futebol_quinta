@@ -1,4 +1,4 @@
-"""Engine e fábrica de sessões.
+"""Engine, fábrica de sessões e o limite de transação.
 
 SQLAlchemy síncrono por decisão de arquitetura (D7): o FastAPI executa os
 endpoints `def` em threadpool, o que é suficiente para a escala desta aplicação
@@ -6,6 +6,7 @@ e evita toda a classe de problemas de event loop.
 """
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -29,3 +30,19 @@ def get_session() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+@contextmanager
+def transaction(session: Session) -> Iterator[None]:
+    """Delimita a transação no service — repository nunca dá commit.
+
+    Tudo que acontece dentro do bloco vira uma escrita só. É isso que impede
+    uma partida de ficar gravada pela metade: se a inserção da escalação
+    falhar no meio, a partida inteira volta atrás.
+    """
+    try:
+        yield
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise

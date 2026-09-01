@@ -5,10 +5,10 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 2 concluída — infraestrutura.**
-> Os três serviços sobem, conversam entre si e as migrations rodam. As telas
-> ainda são placeholders navegáveis: jogadores, partidas, rankings, dashboard e
-> autenticação chegam nas fases seguintes.
+> **Estado atual: Fase 3 concluída — banco de dados e backend base.**
+> As quatro tabelas existem, as estatísticas derivadas funcionam e a API tem seis
+> endpoints de leitura. As telas continuam placeholders navegáveis: a escrita, o
+> dashboard e a autenticação chegam nas fases seguintes.
 
 ---
 
@@ -243,7 +243,7 @@ diretamente — tudo passa por `src/api/client.ts`.
 |---|---|---|
 | 0–1 | Requisitos, arquitetura, modelo de dados | ✅ |
 | 2 | Estrutura do projeto e infraestrutura | ✅ |
-| 3 | Models, migration do schema, repositories | — |
+| 3 | Models, migration do schema, repositories | ✅ |
 | 4 | Autenticação | — |
 | 5 | Design system e layout | — |
 | 6 | Jogadores | — |

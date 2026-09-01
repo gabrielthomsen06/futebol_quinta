@@ -29,3 +29,6 @@ backend/media/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Configuração local do Claude Code (guarda de worktree) — não versionar
+.claude/settings.json
