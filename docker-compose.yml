@@ -1,0 +1,82 @@
+# SÓ NO MIGUÉ FC — ambiente de desenvolvimento
+# Sobe tudo com:  docker compose up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: migue_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    ports:
+      # Publicado para inspeção com cliente SQL na máquina host.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    container_name: migue_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        # O backend só sobe depois do Postgres aceitar conexão,
+        # senão o "alembic upgrade head" do entrypoint falha.
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      MEDIA_ROOT: ${MEDIA_ROOT}
+      MEDIA_URL_PREFIX: ${MEDIA_URL_PREFIX}
+      CURRENT_SEASON: ${CURRENT_SEASON}
+      TZ: ${TZ}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Código montado do host: salvar um arquivo recarrega o servidor.
+      - ./backend:/app
+      # Fotos dos jogadores em volume nomeado, fora da árvore de código.
+      - media_data:/app/media
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  frontend:
+    build: ./frontend
+    container_name: migue_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET}
+      TZ: ${TZ}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # Volume anônimo: impede o bind mount do host de apagar as
+      # dependências instaladas dentro da imagem.
+      - /app/node_modules
+
+volumes:
+  pgdata:
+    name: migue_pgdata
+  media_data:
+    name: migue_media

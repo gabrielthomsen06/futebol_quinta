@@ -1,0 +1,7 @@
+# Scripts executados dentro de containers Linux precisam de LF,
+# senão o shell falha com "no such file or directory".
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
