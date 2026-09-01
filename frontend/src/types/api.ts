@@ -10,3 +10,15 @@ export interface Health {
   version: string
   season: number
 }
+
+export interface AuthUser {
+  id: string
+  username: string
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: 'bearer'
+  /** ISO 8601. O backend manda pronto para o frontend não decodificar o JWT. */
+  expires_at: string
+}

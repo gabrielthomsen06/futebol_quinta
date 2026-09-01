@@ -5,10 +5,10 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 3 concluída — banco de dados e backend base.**
-> As quatro tabelas existem, as estatísticas derivadas funcionam e a API tem seis
-> endpoints de leitura. As telas continuam placeholders navegáveis: a escrita, o
-> dashboard e a autenticação chegam nas fases seguintes.
+> **Estado atual: Fase 4 concluída — autenticação.**
+> Banco, estatísticas derivadas e seis endpoints de leitura funcionando, com
+> login JWT do administrador e a proteção pronta para as rotas de escrita. As
+> telas de jogadores, partidas e dashboard chegam nas fases seguintes.
 
 ---
 
@@ -90,7 +90,6 @@ A URL do banco **nunca** fica no `alembic.ini` (que é versionado): vem sempre d
 
 ## Usuário administrador
 
-> Disponível a partir da **Fase 4**.
 
 As credenciais vêm do ambiente (`ADMIN_USERNAME` e `ADMIN_PASSWORD`) e nunca do
 código. A senha é gravada com hash bcrypt — em texto puro ela não toca o banco,
@@ -101,6 +100,15 @@ docker compose exec backend python -m app.cli create-admin
 ```
 
 O comando é idempotente: rodar de novo apenas atualiza a senha.
+
+A senha **nunca** é passada como argumento (ficaria no histórico do shell e na
+listagem de processos): ou vem de `ADMIN_PASSWORD`, ou é digitada sem eco.
+Mínimo de 12 caracteres, e o limite de 72 **bytes** do bcrypt é conferido em
+UTF-8 — `sãopaulo1234` tem 12 caracteres e 13 bytes.
+
+> **Depois de criar o administrador, você pode remover `ADMIN_PASSWORD` do `.env`.**
+> O hash já está no banco e nenhuma outra parte do sistema lê essa variável.
+> Ela só volta a ser necessária se você quiser trocar a senha.
 
 ---
 
@@ -124,8 +132,8 @@ docker compose exec backend pytest -v      # backend
 docker compose exec frontend npm run typecheck   # tipos do frontend
 ```
 
-Os testes das regras de negócio (vitória/empate/derrota, estatísticas,
-rankings, edição e exclusão de partida) chegam na Fase 12.
+Cobrem integridade do banco, estatísticas derivadas e autenticação. Os testes
+restantes de regra de negócio chegam na Fase 12.
 
 ---
 
@@ -244,7 +252,7 @@ diretamente — tudo passa por `src/api/client.ts`.
 | 0–1 | Requisitos, arquitetura, modelo de dados | ✅ |
 | 2 | Estrutura do projeto e infraestrutura | ✅ |
 | 3 | Models, migration do schema, repositories | ✅ |
-| 4 | Autenticação | — |
+| 4 | Autenticação | ✅ |
 | 5 | Design system e layout | — |
 | 6 | Jogadores | — |
 | 7 | Partidas | — |

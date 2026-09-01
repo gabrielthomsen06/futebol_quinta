@@ -1,10 +1,19 @@
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 
+import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/routes/navigation'
 
 /** Navegação de desktop. No celular quem manda é a barra inferior. */
 export function Navbar() {
+  const { isAuthenticated, logout } = useAuth()
+  const navigate = useNavigate()
+
+  function sair() {
+    logout()
+    navigate('/', { replace: true })
+  }
+
   return (
     <header className="sticky top-0 z-20 hidden border-b border-line bg-surface/95 backdrop-blur md:block">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-6">
@@ -38,12 +47,22 @@ export function Navbar() {
           ))}
         </nav>
 
-        <Link
-          to="/entrar"
-          className="ml-auto rounded-control border border-accent px-4 py-2 text-label font-semibold uppercase tracking-widest text-accent-hi transition-colors hover:bg-accent hover:text-ink"
-        >
-          Entrar
-        </Link>
+        {isAuthenticated ? (
+          <button
+            type="button"
+            onClick={sair}
+            className="ml-auto min-h-11 rounded-control border border-line px-4 text-label font-semibold uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent-hi"
+          >
+            Sair
+          </button>
+        ) : (
+          <Link
+            to="/entrar"
+            className="ml-auto flex min-h-11 items-center rounded-control border border-accent px-4 text-label font-semibold uppercase tracking-widest text-accent-hi transition-colors hover:bg-accent hover:text-ink"
+          >
+            Entrar
+          </Link>
+        )}
       </div>
     </header>
   )

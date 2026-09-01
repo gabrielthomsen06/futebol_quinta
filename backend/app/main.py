@@ -1,12 +1,17 @@
 """Ponto de entrada da API do SÓ NO MIGUÉ FC."""
 
+import logging
+
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import health, matches, players, rankings
+from app.api.routers import auth, health, matches, players, rankings
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
+from app.core.security import secret_key_is_weak
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
@@ -30,10 +35,19 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
+# Alerta, não falha: travar a inicialização atrapalharia o desenvolvimento sem
+# impedir nada de verdade. Em produção quem resolve é o gerenciador de segredos.
+if secret_key_is_weak():
+    logger.warning(
+        "SECRET_KEY fraca (valor padrão ou com menos de 32 caracteres). "
+        "Gere uma com: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+    )
+
 # Todas as rotas de negócio vivem sob /api. Os endpoints de escrita e o
 # dashboard entram nas fases seguintes.
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
+api_router.include_router(auth.router)
 api_router.include_router(players.router)
 api_router.include_router(matches.router)
 api_router.include_router(rankings.router)

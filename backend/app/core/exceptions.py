@@ -15,6 +15,7 @@ class DomainError(Exception):
     """Regra de negócio violada. Vira 400 por padrão."""
 
     status_code: int = status.HTTP_400_BAD_REQUEST
+    headers: dict[str, str] | None = None
 
     def __init__(self, detail: str) -> None:
         self.detail = detail
@@ -31,10 +32,21 @@ class ConflictError(DomainError):
     status_code = status.HTTP_409_CONFLICT
 
 
+class UnauthorizedError(DomainError):
+    """Credenciais ausentes, inválidas ou expiradas."""
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+    headers = {"WWW-Authenticate": "Bearer"}
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _domain_error(_: Request, exc: DomainError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:

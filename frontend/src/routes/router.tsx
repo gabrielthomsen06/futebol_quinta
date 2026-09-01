@@ -10,14 +10,14 @@ import { NotFoundPage } from '@/pages/NotFound'
 import { PlayerProfilePage } from '@/pages/PlayerProfile'
 import { PlayersPage } from '@/pages/Players'
 import { RankingsPage } from '@/pages/Rankings'
+import { ProtectedRoute } from '@/routes/ProtectedRoute'
 
 /**
  * URLs em português, iguais às da interface, e estáveis: /partidas/:id é o link
  * que alguém cola no grupo para mostrar o jogo de quinta.
  *
- * As rotas administrativas (/partidas/nova e /partidas/:id/editar) ganham a
- * proteção do ProtectedRoute na Fase 4 — hoje já existem para o roteamento
- * ficar completo.
+ * As rotas administrativas ficam sob ProtectedRoute. Isso é conveniência de
+ * navegação — quem protege de verdade é a dependência do backend.
  */
 export const router = createBrowserRouter([
   {
@@ -27,12 +27,17 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'rankings', element: <RankingsPage /> },
       { path: 'historico', element: <HistoryPage /> },
-      { path: 'partidas/nova', element: <MatchFormPage /> },
       { path: 'partidas/:id', element: <MatchDetailPage /> },
-      { path: 'partidas/:id/editar', element: <MatchFormPage /> },
       { path: 'jogadores', element: <PlayersPage /> },
       { path: 'jogadores/:id', element: <PlayerProfilePage /> },
       { path: 'entrar', element: <LoginPage /> },
+      {
+        element: <ProtectedRoute />,
+        children: [
+          { path: 'partidas/nova', element: <MatchFormPage /> },
+          { path: 'partidas/:id/editar', element: <MatchFormPage /> },
+        ],
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

@@ -22,14 +22,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session
 
+from app.core import security
 from app.core.config import settings
+from app.db.session import get_session
 from app.main import app
 from app.models.enums import MatchStatus, PlayerStatus
 from app.models.match import Match
 from app.models.participation import MatchParticipation
 from app.models.player import Player
+from app.models.user import User
 
 TEST_DB = "migue_test"
+
+# Senha de teste: 19 caracteres, acima do mínimo de 12 e dentro dos 72 bytes.
+SENHA_DO_ADMIN = "senha-de-teste-1234"
 
 
 def _url_para(banco: str) -> str:
@@ -82,8 +88,34 @@ def session(engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture(scope="session")
 def client() -> TestClient:
-    """Cliente HTTP para os testes de fumaça, contra o banco de desenvolvimento."""
+    """Cliente HTTP dos testes de fumaça, contra o banco de desenvolvimento."""
     return TestClient(app)
+
+
+@pytest.fixture
+def api(session: Session) -> Iterator[TestClient]:
+    """Cliente HTTP ligado à sessão transacional do banco de teste.
+
+    Sobrepõe a dependência de sessão para que o que o endpoint grava seja o
+    mesmo que o teste enxerga — e desapareça no rollback do final.
+    """
+    app.dependency_overrides[get_session] = lambda: session
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.fixture
+def admin(session: Session) -> User:
+    """O administrador único, com a senha de teste já em hash."""
+    user = User(
+        username="admin",
+        password_hash=security.hash_password(SENHA_DO_ADMIN),
+    )
+    session.add(user)
+    session.flush()
+    return user
 
 
 # --------------------------------------------------------------------------
