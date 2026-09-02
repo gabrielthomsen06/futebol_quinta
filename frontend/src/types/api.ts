@@ -159,3 +159,37 @@ export interface Dashboard {
   top_assists: RankingEntry[]
   goals_timeline: GoalsPoint[]
 }
+
+export type RankingMetric =
+  | 'goals'
+  | 'assists'
+  | 'wins'
+  | 'games'
+  | 'goals_per_game'
+  | 'assists_per_game'
+
+export interface Ranking {
+  metric: RankingMetric
+  /** Piso de partidas: 3 nas médias, 0 nas demais. A tela exibe, não recalcula. */
+  min_games: number
+  date_from: string | null
+  date_to: string | null
+  entries: RankingEntry[]
+}
+
+export interface Seasons {
+  current: number
+  /** Anos com partida em qualquer status, do mais recente ao mais antigo. */
+  available: number[]
+}
+
+/** Recorte de período. Os três modos são mutuamente exclusivos no servidor. */
+export type PeriodMode = 'season' | 'month' | 'range' | 'all'
+
+export interface PeriodSelection {
+  mode: PeriodMode
+  season?: number
+  month?: string
+  dateFrom?: string
+  dateTo?: string
+}

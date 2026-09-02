@@ -18,5 +18,7 @@ export function invalidateDerivedData(queryClient: QueryClient): Promise<unknown
     queryClient.invalidateQueries({ queryKey: queryKeys.players }),
     queryClient.invalidateQueries({ queryKey: queryKeys.matches }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.rankings }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.seasons }),
   ])
 }

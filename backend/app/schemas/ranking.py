@@ -22,7 +22,11 @@ class RankingRead(BaseModel):
 
     metric: RankingMetric
     min_games: int = Field(
-        description="Piso de partidas realizadas; 3 nos rankings de média, 0 nos demais"
+        description=(
+            "Piso adicional de partidas exigido pela métrica: 3 nas médias, 0 nas demais. "
+            "Independente disso, o ranking sempre lista apenas quem tem ao menos uma "
+            "partida realizada no período."
+        )
     )
     date_from: dt.date | None
     date_to: dt.date | None

@@ -5,9 +5,9 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 8 concluída — dashboard.**
-> Tela inicial com totais, próxima e última partida, artilharia, assistências e
-> a evolução de gols. Rankings e histórico público chegam nas Fases 9 e 10.
+> **Estado atual: Fase 9 concluída — rankings.**
+> Jogadores, partidas, dashboard e rankings com filtros de temporada, mês e período.
+> Falta o histórico público e os detalhes da partida, na Fase 10.
 
 ---
 
@@ -255,7 +255,7 @@ diretamente — tudo passa por `src/api/client.ts`.
 | 6 | Jogadores | ✅ |
 | 7 | Partidas | ✅ |
 | 8 | Dashboard e gráficos | ✅ |
-| 9 | Rankings | — |
+| 9 | Rankings | ✅ |
 | 10 | Histórico e detalhes da partida | — |
 | 11 | Refino visual e responsividade | — |
 | 12 | Testes das regras de negócio | — |

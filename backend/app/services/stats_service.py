@@ -6,7 +6,9 @@ e a regra do piso de partidas nos rankings de média.
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
+import re
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ from app.models.enums import (
     PlayerStatus,
     RankingMetric,
 )
+from app.core.exceptions import DomainError
 from app.repositories import stats_repository
 from app.repositories.stats_repository import PlayerMatchRow, PlayerStatsRow
 from app.services import player_service
@@ -136,6 +139,14 @@ def ranking(
     histórico não muda porque alguém parou de jogar.
     """
     piso = min_games_for(metric) if min_games is None else min_games
+    # Um ranking lista quem entrou em campo no periodo. Quem tem 0 partidas nao
+    # tem posicao — e sem esse piso um mes sem jogo devolveria o grupo inteiro
+    # zerado, em vez do estado vazio. Quem jogou e nao pontuou continua na
+    # lista: "0 gols em 8 jogos" e informacao.
+    #
+    # Reaproveita o min_games que o repositorio ja tem: nenhuma regra nova,
+    # nenhuma consulta nova.
+    piso = max(piso, 1)
     rows = stats_repository.player_stats(
         session,
         metric=metric,
@@ -145,3 +156,66 @@ def ranking(
         limit=limit,
     )
     return [_derive(row) for row in rows]
+
+
+# --------------------------------------------------------------------------
+# Recorte de período
+#
+# Temporada, mês e intervalo livre são três formas de pedir a mesma coisa: um
+# par de datas. A tradução acontece **aqui, no servidor** — o frontend manda o
+# que o usuário escolheu e não faz aritmética de calendário.
+# --------------------------------------------------------------------------
+
+ANO_MINIMO = 2000
+ANO_MAXIMO = 2100
+_FORMATO_DE_MES = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def resolver_periodo(
+    *,
+    season: int | None = None,
+    month: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> tuple[dt.date | None, dt.date | None]:
+    """Converte a escolha do usuário num par de datas.
+
+    Os três modos são mutuamente exclusivos. Combinar dois deles é erro de quem
+    chamou, e responder com uma precedência silenciosa esconderia o engano —
+    então levanta 400.
+
+    Sem nenhum parâmetro, devolve (None, None): é o "Geral", que cobre todo o
+    histórico.
+    """
+    tem_intervalo = date_from is not None or date_to is not None
+    modos = sum([season is not None, month is not None, tem_intervalo])
+    if modos > 1:
+        raise DomainError(
+            "Escolha só um recorte: temporada, mês ou intervalo de datas."
+        )
+
+    if season is not None:
+        if not ANO_MINIMO <= season <= ANO_MAXIMO:
+            raise DomainError(
+                f"Temporada inválida. Informe um ano entre {ANO_MINIMO} e {ANO_MAXIMO}."
+            )
+        return dt.date(season, 1, 1), dt.date(season, 12, 31)
+
+    if month is not None:
+        if not _FORMATO_DE_MES.match(month):
+            raise DomainError("Mês inválido. Use o formato AAAA-MM, por exemplo 2026-08.")
+        ano, mes = (int(parte) for parte in month.split("-"))
+        if not ANO_MINIMO <= ano <= ANO_MAXIMO:
+            raise DomainError(
+                f"Mês inválido. O ano precisa estar entre {ANO_MINIMO} e {ANO_MAXIMO}."
+            )
+        # monthrange devolve (dia da semana do dia 1, quantidade de dias).
+        ultimo_dia = calendar.monthrange(ano, mes)[1]
+        return dt.date(ano, mes, 1), dt.date(ano, mes, ultimo_dia)
+
+    # Intervalo livre. Cada extremo é opcional: "de agosto em diante" e "até
+    # agosto" são recortes legítimos.
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise DomainError("A data inicial não pode ser depois da data final.")
+
+    return date_from, date_to

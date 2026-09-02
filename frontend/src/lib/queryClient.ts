@@ -36,4 +36,7 @@ export const queryKeys = {
   matchList: (status: string) => ['matches', 'list', status] as const,
   match: (id: string) => ['matches', 'detail', id] as const,
   dashboard: ['dashboard'] as const,
+  rankings: ['rankings'] as const,
+  ranking: (metric: string, periodo: string) => ['rankings', metric, periodo] as const,
+  seasons: ['seasons'] as const,
 }
