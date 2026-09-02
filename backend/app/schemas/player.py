@@ -68,3 +68,29 @@ class PlayerStatisticsRead(BaseModel):
 
     stats: PlayerStatsRead
     history: list[PlayerMatchRead]
+
+
+class PlayerCreate(BaseModel):
+    """Corpo de POST /api/players.
+
+    Só o apelido: nem posição, nem número, nem idade. A foto vem depois, por
+    upload próprio.
+    """
+
+    nickname: str = Field(min_length=1, max_length=40)
+
+
+class PlayerUpdate(BaseModel):
+    """Corpo de PUT /api/players/{id}. Editar jogador é editar o apelido."""
+
+    nickname: str = Field(min_length=1, max_length=40)
+
+
+class PlayerStatusUpdate(BaseModel):
+    """Corpo de PATCH /api/players/{id}/status.
+
+    Inativar não apaga nada: o jogador continua no histórico, nos rankings e
+    com perfil próprio. Só sai da seleção padrão de uma nova partida.
+    """
+
+    status: PlayerStatus

@@ -1,3 +1,8 @@
+import { Construction } from 'lucide-react'
+
+import { EmptyState } from '@/components/common/EmptyState'
+import { PageHeader } from '@/components/common/PageHeader'
+
 interface PagePlaceholderProps {
   title: string
   /** Em qual fase esta tela ganha conteúdo de verdade. */
@@ -7,17 +12,19 @@ interface PagePlaceholderProps {
 
 /**
  * Marcador temporário das telas que só existem para provar o roteamento.
- * Cada uma é substituída pela implementação real na fase indicada.
+ *
+ * Usa o PageHeader e o EmptyState de verdade: assim as telas provisórias já
+ * mostram o design final, em vez de um visual paralelo que ninguém revisa.
  */
 export function PagePlaceholder({ title, phase, description }: PagePlaceholderProps) {
   return (
-    <section className="py-6">
-      <p className="text-label font-semibold uppercase tracking-[0.2em] text-accent">{phase}</p>
-      <h1 className="mt-2 font-display text-4xl font-extrabold uppercase tracking-wide">{title}</h1>
-      <p className="mt-3 max-w-prose text-muted">{description}</p>
-      <p className="mt-6 rounded-card border border-line bg-card px-4 py-3 text-sm text-dim">
-        Tela ainda não implementada. A Fase 2 entrega apenas a infraestrutura.
-      </p>
+    <section>
+      <PageHeader eyebrow={phase} title={title} description={description} />
+      <EmptyState
+        icon={Construction}
+        title="Ainda não implementada"
+        description="A Fase 5 entrega o design system. Esta tela ganha conteúdo na fase indicada acima."
+      />
     </section>
   )
 }

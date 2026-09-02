@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { ApiError } from '@/api/client'
+import { PageHeader } from '@/components/common/PageHeader'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 
 interface EstadoDeOrigem {
@@ -39,60 +42,63 @@ export function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-sm py-10">
-      <p className="text-label font-semibold uppercase tracking-[0.2em] text-accent">
-        Área do administrador
-      </p>
-      <h1 className="mt-2 font-display text-4xl font-extrabold uppercase tracking-wide">Entrar</h1>
-      <p className="mt-3 text-muted">
-        Só o administrador precisa entrar. Consultar rankings, histórico e jogadores é livre.
-      </p>
+    <section className="mx-auto max-w-sm">
+      <PageHeader
+        eyebrow="Área do administrador"
+        title="Entrar"
+        description="Só o administrador precisa entrar. Consultar rankings, histórico e jogadores é livre."
+      />
 
-      <form onSubmit={aoEnviar} className="mt-8 flex flex-col gap-5">
+      <form onSubmit={aoEnviar} className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <label htmlFor="username" className="text-label font-semibold uppercase tracking-widest text-muted">
+          <label
+            htmlFor="username"
+            className="text-label font-semibold uppercase text-muted-foreground"
+          >
             Usuário
           </label>
-          <input
+          <Input
             id="username"
             name="username"
             autoComplete="username"
             required
+            invalid={erro !== null}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="min-h-12 rounded-control border border-line bg-card px-4 text-fg placeholder:text-dim"
           />
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="text-label font-semibold uppercase tracking-widest text-muted">
+          <label
+            htmlFor="password"
+            className="text-label font-semibold uppercase text-muted-foreground"
+          >
             Senha
           </label>
-          <input
+          <Input
             id="password"
             name="password"
             type="password"
             autoComplete="current-password"
             required
+            invalid={erro !== null}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="min-h-12 rounded-control border border-line bg-card px-4 text-fg placeholder:text-dim"
           />
         </div>
 
         {erro && (
-          <p role="alert" className="rounded-control border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <p
+            role="alert"
+            className="rounded-control border border-destructive px-4 py-3 text-sm text-destructive"
+          >
             {erro}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={entrando}
-          className="min-h-12 rounded-control bg-accent px-5 font-display text-lg font-bold uppercase tracking-widest text-ink transition-colors hover:bg-accent-hi disabled:opacity-60"
-        >
+        <Button type="submit" size="lg" disabled={entrando}>
           {entrando ? 'Entrando...' : 'Entrar'}
-        </button>
+        </Button>
       </form>
     </section>
   )

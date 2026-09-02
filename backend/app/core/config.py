@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     # ---------- Fotos ----------
     media_root: Path = Path("/app/media")
     media_url_prefix: str = "/media"
+    max_photo_bytes: int = 5 * 1024 * 1024
+    photo_size: int = 512
 
     @property
     def cors_origins_list(self) -> list[str]:

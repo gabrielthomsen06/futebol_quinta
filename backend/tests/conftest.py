@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from alembic import command
@@ -169,3 +170,26 @@ def criar_partida(
         )
     session.flush()
     return match
+
+
+@pytest.fixture
+def auth_headers(api: TestClient, admin: User) -> dict[str, str]:
+    """Cabeçalho Bearer de um login de verdade, para os testes de escrita."""
+    resposta = api.post(
+        "/api/auth/login", json={"username": "admin", "password": SENHA_DO_ADMIN}
+    )
+    assert resposta.status_code == 200
+    return {"Authorization": f"Bearer {resposta.json()['access_token']}"}
+
+
+@pytest.fixture
+def media_tmp(tmp_path: Path) -> Iterator[Path]:
+    """Isola os arquivos de foto num diretório temporário.
+
+    Sem isto os testes gravariam no volume de mídia de desenvolvimento e
+    deixariam lixo para trás.
+    """
+    original = settings.media_root
+    settings.media_root = tmp_path
+    yield tmp_path
+    settings.media_root = original

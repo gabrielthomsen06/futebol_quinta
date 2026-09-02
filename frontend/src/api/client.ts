@@ -27,6 +27,8 @@ type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options
+  // FormData precisa ir cru: o navegador define o Content-Type com o boundary.
+  const ehFormData = body instanceof FormData
   const token = getToken()
 
   let response: Response
@@ -34,11 +36,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     response = await fetch(`${BASE_URL}${path}`, {
       ...rest,
       headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !ehFormData ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : ehFormData ? (body as FormData) : JSON.stringify(body),
     })
   } catch {
     // Servidor fora do ar, rede caída, DNS: nunca chegou a haver resposta.
@@ -76,4 +78,5 @@ export const api = {
   put: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, form: FormData) => apiFetch<T>(path, { method: 'POST', body: form }),
 }

@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { DesignSystemPage } from '@/pages/DesignSystem'
 import { HistoryPage } from '@/pages/History'
 import { HomePage } from '@/pages/Home'
 import { LoginPage } from '@/pages/Login'
@@ -31,6 +32,8 @@ export const router = createBrowserRouter([
       { path: 'jogadores', element: <PlayersPage /> },
       { path: 'jogadores/:id', element: <PlayerProfilePage /> },
       { path: 'entrar', element: <LoginPage /> },
+      // Vitrine do design system: fora da navegação, para revisão visual.
+      { path: 'design', element: <DesignSystemPage /> },
       {
         element: <ProtectedRoute />,
         children: [

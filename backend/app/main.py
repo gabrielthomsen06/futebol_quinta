@@ -1,6 +1,7 @@
 """Ponto de entrada da API do SÓ NO MIGUÉ FC."""
 
 import logging
+import mimetypes
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,6 +61,9 @@ app.include_router(health.router, include_in_schema=False)
 # As fotos dos jogadores são servidas do volume. Em produção isso passaria para
 # um nginx/CDN sem tocar no banco, já que só o caminho relativo é persistido.
 settings.media_root.mkdir(parents=True, exist_ok=True)
+# Nem todo sistema conhece .webp; sem isto o StaticFiles serve as fotos como
+# application/octet-stream, e cache e proxies deixam de tratá-las como imagem.
+mimetypes.add_type("image/webp", ".webp")
 app.mount(
     settings.media_url_prefix,
     StaticFiles(directory=settings.media_root),

@@ -2,22 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Tokens do SÓ NO MIGUÉ FC.
+ *
+ * Tema único e escuro: a identidade é preta por definição, então não existe
+ * par claro/escuro — seria manter uma paleta que ninguém veria.
+ *
+ * Valores em HSL sem a função `hsl()` porque é o formato que o Tailwind espera
+ * para conseguir aplicar opacidade: `bg-card/95` só funciona assim.
+ *
+ * Contraste medido sobre o fundo #0A0A0A (mínimo AA para texto é 4,5):
+ *   foreground 17,76 · gold 10,64 · primary-hi 9,41
+ *   muted-foreground 6,56 · primary 6,51 · subtle-foreground 5,13
+ *   destructive 5,06
+ * Nenhuma cor de texto abaixo de 4,5. Nada de verde na interface: vitória,
+ * empate e derrota se distinguem por letra (V/E/D), não por cor.
+ */
 @layer base {
+  :root {
+    --background: 0 0% 3.9%; /* #0A0A0A — domina a tela */
+    --foreground: 33 33% 94.7%; /* #F6F2ED — branco quente */
+
+    --card: 24 11% 9.2%; /* #1A1715 */
+    --card-foreground: 33 33% 94.7%;
+
+    --popover: 24 11% 9.2%;
+    --popover-foreground: 33 33% 94.7%;
+
+    --muted: 30 6% 6.7%; /* #121110 — superfície secundária */
+    --muted-foreground: 28 8% 57.8%; /* #9C938B — texto secundário */
+    --subtle-foreground: 27 7% 50.6%; /* #8A8078 — texto terciário */
+
+    --border: 20 11% 16.3%; /* #2E2825 — o traço que separa tudo */
+    --input: 20 11% 16.3%;
+    --ring: 21 89% 53.9%; /* #F26B21 — anel de foco */
+
+    --primary: 21 89% 53.9%; /* #F26B21 — o laranja da logo */
+    --primary-foreground: 0 0% 3.9%;
+    --primary-hi: 26 100% 65.1%; /* #FF9A4D — texto pequeno e hover */
+
+    --gold: 39 87% 59.4%; /* #F2B33D — destaque secundário */
+
+    --destructive: 358 75% 59%; /* #E5484D — só para excluir */
+    --destructive-foreground: 0 0% 3.9%;
+
+    --radius: 0.5rem;
+  }
+
   html {
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-ink text-fg font-sans antialiased;
-    /* Espaço para a barra de navegação fixa do celular. */
+    @apply bg-background text-foreground font-sans antialiased;
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Foco sempre visível — requisito de acessibilidade. */
   :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-ink;
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
+}
 
+@layer components {
   /* Números de estatística nunca dançam entre as linhas de um ranking. */
   .tabular {
     font-variant-numeric: tabular-nums;
