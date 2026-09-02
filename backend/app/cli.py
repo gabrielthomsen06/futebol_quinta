@@ -100,11 +100,36 @@ def main(argv: list[str] | None = None) -> int:
         help="Cria ou atualiza o administrador único a partir do ambiente.",
     )
 
+    subcomandos.add_parser(
+        "seed",
+        help="Popula o banco com jogadores e partidas FICTÍCIOS (base vazia).",
+    )
+
     args = parser.parse_args(argv)
     if args.comando == "create-admin":
         return _comando_create_admin()
+    if args.comando == "seed":
+        return _comando_seed()
     return 1
 
+
+
+
+def _comando_seed() -> int:
+    from app import seed as seed_module
+
+    session = SessionLocal()
+    try:
+        resumo = seed_module.seed(session)
+    except RuntimeError as erro:
+        print(f"Erro: {erro}", file=sys.stderr)
+        return 1
+    finally:
+        session.close()
+
+    print(f"Criados {resumo}")
+    print("ATENÇÃO: são dados FICTÍCIOS de desenvolvimento. Nunca rode em produção.")
+    return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())

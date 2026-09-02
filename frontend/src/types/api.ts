@@ -78,3 +78,84 @@ export interface PlayerStatistics {
 
 /** Filtro da listagem. O padrão do backend é só ativos. */
 export type PlayerStatusFilter = 'active' | 'inactive' | 'all'
+
+/** Enum do backend. Os rótulos em português são só apresentação. */
+export type MatchStatus = 'SCHEDULED' | 'PLAYED' | 'CANCELLED'
+
+export interface Match {
+  id: string
+  match_date: string
+  status: MatchStatus
+  team_1_name: string
+  team_2_name: string
+  team_1_score: number | null
+  team_2_score: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MatchParticipation {
+  player_id: string
+  nickname: string
+  photo_path: string | null
+  team: number
+  goals: number
+  assists: number
+}
+
+export interface MatchDetail extends Match {
+  team_1: MatchParticipation[]
+  team_2: MatchParticipation[]
+}
+
+export interface MatchList {
+  items: Match[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** Corpo de criação e edição. A escalação vai inteira, numa escrita só. */
+export interface MatchWrite {
+  match_date: string
+  status: MatchStatus
+  team_1_name: string
+  team_2_name: string
+  team_1_score: number | null
+  team_2_score: number | null
+  participants: {
+    player_id: string
+    team: 1 | 2
+    goals: number
+    assists: number
+  }[]
+}
+
+export interface DashboardTotals {
+  matches_played: number
+  /** Soma dos gols individuais lançados, não dos placares. */
+  goals_registered: number
+  assists_registered: number
+}
+
+export interface GoalsPoint {
+  match_date: string
+  goals: number
+}
+
+export interface RankingEntry {
+  position: number
+  player: PlayerWithStats
+}
+
+export interface Dashboard {
+  season: number
+  totals: DashboardTotals
+  /** Fora do filtro de temporada: é sobre o futuro. */
+  next_match: Match | null
+  /** Fora do filtro de temporada: interessa mesmo se foi na temporada passada. */
+  last_match: Match | null
+  top_scorers: RankingEntry[]
+  top_assists: RankingEntry[]
+  goals_timeline: GoalsPoint[]
+}

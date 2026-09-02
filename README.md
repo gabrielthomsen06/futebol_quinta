@@ -5,10 +5,9 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 4 concluída — autenticação.**
-> Banco, estatísticas derivadas e seis endpoints de leitura funcionando, com
-> login JWT do administrador e a proteção pronta para as rotas de escrita. As
-> telas de jogadores, partidas e dashboard chegam nas fases seguintes.
+> **Estado atual: Fase 8 concluída — dashboard.**
+> Tela inicial com totais, próxima e última partida, artilharia, assistências e
+> a evolução de gols. Rankings e histórico público chegam nas Fases 9 e 10.
 
 ---
 
@@ -114,14 +113,13 @@ UTF-8 — `sãopaulo1234` tem 12 caracteres e 13 bytes.
 
 ## Dados de desenvolvimento (seed)
 
-> Disponível a partir da **Fase 7**.
-
 ```bash
 docker compose exec backend python -m app.cli seed
 ```
 
-Cria o administrador, alguns jogadores e algumas partidas **fictícios**,
-claramente identificados como dados de desenvolvimento. Nunca rode em produção.
+Cria 10 jogadores e 6 partidas **fictícios**, cobrindo os três status. O comando
+**recusa rodar se já houver partidas**, para não misturar exemplo com dado real.
+O administrador é criado à parte, com `create-admin`. Nunca rode em produção.
 
 ---
 
@@ -253,10 +251,10 @@ diretamente — tudo passa por `src/api/client.ts`.
 | 2 | Estrutura do projeto e infraestrutura | ✅ |
 | 3 | Models, migration do schema, repositories | ✅ |
 | 4 | Autenticação | ✅ |
-| 5 | Design system e layout | — |
-| 6 | Jogadores | — |
-| 7 | Partidas | — |
-| 8 | Dashboard e gráficos | — |
+| 5 | Design system e layout | ✅ |
+| 6 | Jogadores | ✅ |
+| 7 | Partidas | ✅ |
+| 8 | Dashboard e gráficos | ✅ |
 | 9 | Rankings | — |
 | 10 | Histórico e detalhes da partida | — |
 | 11 | Refino visual e responsividade | — |

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as playersApi from '@/api/players'
+import { invalidateDerivedData } from '@/lib/invalidate'
 import { queryKeys } from '@/lib/queryClient'
 import type { PlayerStatus, PlayerStatusFilter } from '@/types/api'
 
@@ -27,7 +28,7 @@ export function usePlayerStats(id: string) {
  */
 function useInvalidarJogadores() {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: queryKeys.players })
+  return () => invalidateDerivedData(queryClient)
 }
 
 export function useCreatePlayer() {

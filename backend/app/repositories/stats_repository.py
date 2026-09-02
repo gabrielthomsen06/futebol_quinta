@@ -258,3 +258,88 @@ def player_match_history(
         )
         for row in session.execute(stmt)
     ]
+
+
+@dataclass(frozen=True, slots=True)
+class SeasonTotals:
+    """Os três números grandes da tela inicial."""
+
+    matches_played: int
+    goals: int
+    assists: int
+
+
+@dataclass(frozen=True, slots=True)
+class GoalsPoint:
+    """Um ponto da série temporal de gols."""
+
+    match_date: dt.date
+    goals: int
+
+
+def _no_periodo(stmt, date_from: dt.date | None, date_to: dt.date | None):  # type: ignore[no-untyped-def]
+    if date_from is not None:
+        stmt = stmt.where(Match.match_date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(Match.match_date <= date_to)
+    return stmt
+
+
+def season_totals(
+    session: Session,
+    *,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> SeasonTotals:
+    """Totais do período, contando apenas partidas realizadas.
+
+    Gols e assistências são a **soma dos lançamentos individuais**, não dos
+    placares. Os dois números são independentes por definição, e o rótulo da
+    tela diz "gols registrados" justamente por isso.
+    """
+    partidas = select(func.count()).select_from(Match).where(Match.status == MatchStatus.PLAYED)
+    total_de_partidas = session.scalar(_no_periodo(partidas, date_from, date_to)) or 0
+
+    agregados = (
+        select(
+            func.coalesce(func.sum(MatchParticipation.goals), 0),
+            func.coalesce(func.sum(MatchParticipation.assists), 0),
+        )
+        .select_from(MatchParticipation)
+        .join(Match, Match.id == MatchParticipation.match_id)
+        .where(Match.status == MatchStatus.PLAYED)
+    )
+    gols, assistencias = session.execute(_no_periodo(agregados, date_from, date_to)).one()
+
+    return SeasonTotals(matches_played=total_de_partidas, goals=gols, assists=assistencias)
+
+
+def goals_timeline(
+    session: Session,
+    *,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> list[GoalsPoint]:
+    """Gols registrados por data, em ordem crescente.
+
+    Agrupa por **data** e não por partida: nas raras quintas com dois jogos, os
+    dois viram um ponto só — que é o certo para um eixo temporal.
+
+    O LEFT JOIN mantém no gráfico uma partida realizada em que ninguém anotou
+    gol: ela aparece como zero, em vez de sumir da linha.
+    """
+    stmt = (
+        select(
+            Match.match_date,
+            func.coalesce(func.sum(MatchParticipation.goals), 0).label("goals"),
+        )
+        .select_from(Match)
+        .outerjoin(MatchParticipation, MatchParticipation.match_id == Match.id)
+        .where(Match.status == MatchStatus.PLAYED)
+        .group_by(Match.match_date)
+        .order_by(Match.match_date.asc())
+    )
+    return [
+        GoalsPoint(match_date=linha.match_date, goals=linha.goals)
+        for linha in session.execute(_no_periodo(stmt, date_from, date_to))
+    ]

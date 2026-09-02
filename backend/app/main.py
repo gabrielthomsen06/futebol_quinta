@@ -7,7 +7,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import auth, health, matches, players, rankings
+from app.api.routers import auth, dashboard, health, matches, players, rankings
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.security import secret_key_is_weak
@@ -49,6 +49,7 @@ if secret_key_is_weak():
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(dashboard.router)
 api_router.include_router(players.router)
 api_router.include_router(matches.router)
 api_router.include_router(rankings.router)

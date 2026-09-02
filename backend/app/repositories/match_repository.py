@@ -97,3 +97,41 @@ def clear_participations(session: Session, match_id: uuid.UUID) -> None:
         delete(MatchParticipation).where(MatchParticipation.match_id == match_id)
     )
     session.flush()
+
+
+def next_scheduled(session: Session, *, from_date: dt.date) -> Match | None:
+    """A partida agendada mais próxima, a partir da data informada.
+
+    `from_date` chega como parâmetro em vez de usar CURRENT_DATE no SQL: assim
+    os testes fixam "hoje" em vez de depender do relógio, e a comparação fica
+    entre duas datas puras — `match_date` é DATE, sem hora, então não existe a
+    virada de dia por fuso horário.
+
+    Uma partida agendada que ficou no passado não é "a próxima": ela some deste
+    card e continua no histórico.
+    """
+    stmt = (
+        select(Match)
+        .where(Match.status == MatchStatus.SCHEDULED, Match.match_date >= from_date)
+        .order_by(Match.match_date.asc(), Match.created_at.asc(), Match.id.asc())
+        .limit(1)
+    )
+    return session.scalars(stmt).first()
+
+
+def last_played(session: Session) -> Match | None:
+    """A partida realizada mais recente.
+
+    Duas partidas podem dividir a mesma data. `created_at` desempata quando elas
+    vieram de requisicoes diferentes — que e o caso real. Dentro de uma mesma
+    transacao o `now()` do Postgres e identico para as duas, entao o `id` entra
+    como criterio final: a ordem nunca fica indefinida, e a tela inicial nao
+    alterna entre as duas a cada carregamento.
+    """
+    stmt = (
+        select(Match)
+        .where(Match.status == MatchStatus.PLAYED)
+        .order_by(Match.match_date.desc(), Match.created_at.desc(), Match.id.desc())
+        .limit(1)
+    )
+    return session.scalars(stmt).first()

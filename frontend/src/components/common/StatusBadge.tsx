@@ -22,17 +22,17 @@ const badgeVariants = cva(
   },
 )
 
-const ROTULOS = {
+export const MATCH_STATUS_LABELS = {
   SCHEDULED: 'Agendada',
   PLAYED: 'Realizada',
   CANCELLED: 'Cancelada',
 } as const
 
 export interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {
-  status: keyof typeof ROTULOS
+  status: keyof typeof MATCH_STATUS_LABELS
   className?: string
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  return <span className={cn(badgeVariants({ status }), className)}>{ROTULOS[status]}</span>
+  return <span className={cn(badgeVariants({ status }), className)}>{MATCH_STATUS_LABELS[status]}</span>
 }

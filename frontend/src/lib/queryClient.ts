@@ -32,4 +32,8 @@ export const queryKeys = {
   playerList: (status: string) => ['players', 'list', status] as const,
   player: (id: string) => ['players', 'detail', id] as const,
   playerStats: (id: string) => ['players', 'stats', id] as const,
+  matches: ['matches'] as const,
+  matchList: (status: string) => ['matches', 'list', status] as const,
+  match: (id: string) => ['matches', 'detail', id] as const,
+  dashboard: ['dashboard'] as const,
 }

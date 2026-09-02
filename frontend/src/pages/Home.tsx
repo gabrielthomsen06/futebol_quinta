@@ -1,79 +1,128 @@
+import { CalendarPlus, Goal, Handshake } from 'lucide-react'
+import { Suspense, lazy } from 'react'
+import { Link } from 'react-router-dom'
+
+import { EmptyState } from '@/components/common/EmptyState'
+import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
+import { StatCard } from '@/components/common/StatCard'
+import { ALTURA_DO_GRAFICO, ChartCard } from '@/components/charts/ChartCard'
+import { LastMatchCard } from '@/components/dashboard/LastMatchCard'
+import { NextMatchCard } from '@/components/dashboard/NextMatchCard'
+import { TopPlayersList } from '@/components/dashboard/TopPlayersList'
 import { Button } from '@/components/ui/button'
-import { useHealth } from '@/hooks/useHealth'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/hooks/useAuth'
+import { useDashboard } from '@/hooks/useDashboard'
 
 /**
- * Placeholder da tela inicial.
- *
- * O indicador abaixo é técnico e proposital: prova que o frontend conversa com
- * o backend através do proxy, exercitando o TanStack Query nos três estados.
- * O dashboard de verdade — totais, próxima partida, última partida, rankings e
- * gráficos — chega na Fase 8 e substitui este bloco.
+ * O Recharts é pesado e esta é a primeira tela que abre no celular. Carregando
+ * o gráfico sob demanda, o painel — que é o que importa — pinta primeiro.
  */
+const GoalsOverTimeChart = lazy(() => import('@/components/charts/GoalsOverTimeChart'))
+
 export function HomePage() {
-  const { data, isPending, isError, error, refetch, isRefetching } = useHealth()
+  const { isAuthenticated } = useAuth()
+  const { data, isPending, isError, error, refetch, isRefetching } = useDashboard()
+
+  if (isPending) return <PainelCarregando />
+
+  if (isError) {
+    return (
+      <ErrorState message={error.message} onRetry={() => void refetch()} retrying={isRefetching} />
+    )
+  }
+
+  const { totals, next_match, last_match, top_scorers, top_assists, goals_timeline } = data
+  const semNada = totals.matches_played === 0 && next_match === null && last_match === null
 
   return (
     <section>
       <PageHeader
-        eyebrow="Temporada 2026"
+        eyebrow={`Temporada ${data.season}`}
         title="Só no Migué FC"
-        description="Futebol de segunda. O dashboard completo chega na Fase 8."
+        description="Futebol de segunda."
       />
 
-      <div className="rounded-card border border-border bg-card p-5">
-        <h2 className="font-display text-section uppercase text-muted-foreground">
-          Verificação de infraestrutura
-        </h2>
-
-        {isPending && (
-          <p className="mt-3 flex items-center gap-2 text-muted-foreground">
-            <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-muted-foreground" />
-            Consultando o backend...
-          </p>
-        )}
-
-        {isError && (
-          <div className="mt-3">
-            <p className="flex items-center gap-2 font-medium">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-destructive" />
-              Backend: desconectado
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refetch()}
-              disabled={isRefetching}
-              className="mt-4"
-            >
-              {isRefetching ? 'Tentando...' : 'Tentar de novo'}
-            </Button>
+      {semNada ? (
+        <EmptyState
+          icon={CalendarPlus}
+          title="Nenhuma partida registrada"
+          description="Assim que a primeira quinta-feira for registrada, os números aparecem aqui."
+          action={
+            isAuthenticated ? (
+              <Button asChild>
+                <Link to="/partidas/nova">Criar a primeira partida</Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard value={totals.matches_played} label="Partidas" />
+            <StatCard value={totals.goals_registered} label="Gols registrados" highlight />
+            <StatCard value={totals.assists_registered} label="Assistências" />
           </div>
-        )}
 
-        {data && (
-          <dl className="mt-3 space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-primary" />
-              <dt className="sr-only">Estado da API</dt>
-              <dd className="font-medium">Backend: conectado</dd>
-            </div>
-            <div className="flex justify-between border-t border-border pt-2">
-              <dt className="text-muted-foreground">Banco de dados</dt>
-              <dd className="font-medium">{data.database === 'ok' ? 'acessível' : 'com erro'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Versão da API</dt>
-              <dd className="tabular font-medium">{data.version}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Temporada</dt>
-              <dd className="tabular font-medium">{data.season}</dd>
-            </div>
-          </dl>
-        )}
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <NextMatchCard partida={next_match} />
+            <LastMatchCard partida={last_match} />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopPlayersList
+              title="Artilharia"
+              icon={Goal}
+              entries={top_scorers}
+              metric="goals"
+              emptyMessage="Nenhum gol registrado na temporada"
+            />
+            <TopPlayersList
+              title="Assistências"
+              icon={Handshake}
+              entries={top_assists}
+              metric="assists"
+              emptyMessage="Nenhuma assistência registrada na temporada"
+            />
+          </div>
+
+          <ChartCard title="Evolução de gols" pontos={goals_timeline.length}>
+            <Suspense fallback={<Skeleton className="h-full w-full" />}>
+              <GoalsOverTimeChart pontos={goals_timeline} />
+            </Suspense>
+          </ChartCard>
+        </div>
+      )}
     </section>
   )
 }
+
+/** Esqueleto com a forma do painel, para a página não pular quando o dado chega. */
+function PainelCarregando() {
+  return (
+    <section>
+      <PageHeader eyebrow="Temporada" title="Só no Migué FC" description="Futebol de segunda." />
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-44" />
+          <Skeleton className="h-44" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
+        </div>
+        <Skeleton style={{ height: ALTURA_DO_GRAFICO + 80 }} />
+      </div>
+      <span role="status" className="sr-only">
+        Carregando o painel...
+      </span>
+    </section>
+  )
+}
+

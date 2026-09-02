@@ -6,18 +6,20 @@ import datetime as dt
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 
-from app.api.deps import SessionDep
+from app.api.deps import AdminDep, SessionDep
 from app.models.enums import MatchStatus
 from app.models.match import Match
 from app.schemas.match import (
     MatchDetailRead,
     MatchListRead,
     MatchRead,
+    MatchWrite,
     ParticipationRead,
 )
 from app.services import match_service
+from app.services.match_service import ParticipantInput
 
 router = APIRouter(prefix="/matches", tags=["partidas"])
 
@@ -78,3 +80,75 @@ def _to_detail(match: Match) -> MatchDetailRead:
         team_1=lado(1),
         team_2=lado(2),
     )
+
+
+# --------------------------------------------------------------------------
+# Escrita — exige o administrador.
+#
+# Nenhuma regra nova mora aqui: a validação inteira (jogador repetido, time
+# fora de 1-2, REALIZADA exigindo placar e os dois times) já vive em
+# match_service._validate desde a Fase 3. O router só traduz HTTP.
+# --------------------------------------------------------------------------
+
+
+def _participantes(dados: MatchWrite) -> list[ParticipantInput]:
+    """Converte o corpo validado pelo Pydantic no tipo que o service espera."""
+    return [
+        ParticipantInput(
+            player_id=p.player_id, team=p.team, goals=p.goals, assists=p.assists
+        )
+        for p in dados.participants
+    ]
+
+
+@router.post(
+    "",
+    response_model=MatchDetailRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cria uma partida",
+    responses={400: {"description": "Escalação ou placar inconsistentes com o status"}},
+)
+def create_match(dados: MatchWrite, session: SessionDep, admin: AdminDep) -> MatchDetailRead:
+    match = match_service.create_match(
+        session,
+        match_date=dados.match_date,
+        status=dados.status,
+        team_1_name=dados.team_1_name,
+        team_2_name=dados.team_2_name,
+        team_1_score=dados.team_1_score,
+        team_2_score=dados.team_2_score,
+        participants=_participantes(dados),
+    )
+    return _to_detail(match)
+
+
+@router.put(
+    "/{match_id}",
+    response_model=MatchDetailRead,
+    summary="Substitui a partida, escalação inclusa",
+    responses={400: {"description": "Escalação ou placar inconsistentes com o status"}},
+)
+def replace_match(
+    match_id: uuid.UUID, dados: MatchWrite, session: SessionDep, admin: AdminDep
+) -> MatchDetailRead:
+    match = match_service.replace_match(
+        session,
+        match_id,
+        match_date=dados.match_date,
+        status=dados.status,
+        team_1_name=dados.team_1_name,
+        team_2_name=dados.team_2_name,
+        team_1_score=dados.team_1_score,
+        team_2_score=dados.team_2_score,
+        participants=_participantes(dados),
+    )
+    return _to_detail(match)
+
+
+@router.delete(
+    "/{match_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Exclui a partida e as estatísticas dela",
+)
+def delete_match(match_id: uuid.UUID, session: SessionDep, admin: AdminDep) -> None:
+    match_service.delete_match(session, match_id)
