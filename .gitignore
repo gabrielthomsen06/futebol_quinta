@@ -32,3 +32,6 @@ Thumbs.db
 
 # Configuração local do Claude Code (guarda de worktree) — não versionar
 .claude/settings.json
+
+# Configuração de produção — vive só na VPS
+.env.prod

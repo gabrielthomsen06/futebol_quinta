@@ -1,0 +1,52 @@
+# Caddy do SÓ NO MIGUÉ FC.
+#
+# É o único serviço exposto à internet. Faz três coisas: HTTPS automático,
+# servir o React compilado e repassar /api e /media para o backend.
+
+# O Let's Encrypt avisa por e-mail se a renovação automática falhar. Para
+# ativar isso quando o domínio existir, descomente as três linhas abaixo e
+# preencha o endereço. Deixamos fora por padrão porque um valor vazio quebra
+# o Caddy no parse, e a stack precisa subir sem domínio para ser validada.
+#
+# {
+# 	email voce@exemplo.com
+# }
+
+# DOMINIO vem do ambiente. Em produção é o domínio real; para validar a
+# stack antes de ter domínio, use DOMINIO=:80 — aí o Caddy serve por HTTP
+# sem tentar emitir certificado.
+{$DOMINIO} {
+	encode zstd gzip
+
+	header {
+		# Só faz sentido com HTTPS de verdade; é ignorado em HTTP simples.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Não anunciar o servidor nem sua versão.
+		-Server
+	}
+
+	# A API e as fotos, servidas pelo backend na rede interna.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /media/* {
+		reverse_proxy backend:8000
+	}
+
+	# O React. try_files é o que faz um F5 em /jogadores/<id> funcionar:
+	# sem ele, o navegador pediria um arquivo que não existe e receberia 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

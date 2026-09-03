@@ -5,9 +5,11 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 10 concluída — todas as telas públicas prontas.**
-> Início, rankings, histórico, detalhes da partida, jogadores e perfil, mais o CRUD
-> administrativo. Faltam o refino final, os testes de frontend e a documentação.
+> **Estado atual: Fase 11 concluída — pronto para produção.**
+> Todas as telas públicas estão prontas (início, rankings, histórico, detalhes da
+> partida, jogadores e perfil) mais o CRUD administrativo. A Fase 11 acrescentou a
+> stack de produção, backup fora da VPS e os smoke tests — veja
+> [Deploy em produção](#deploy-em-produção).
 
 ---
 
@@ -19,7 +21,7 @@ consulta; só o administrador registra partidas e jogadores.
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy 2 (síncrono), Alembic |
 | Banco | PostgreSQL 16 |
 | Autenticação | JWT, um único administrador |
-| Infra | Docker, Docker Compose |
+| Infra | Docker, Docker Compose, Caddy (produção) |
 
 ---
 
@@ -192,14 +194,163 @@ Todas ficam no `.env` da raiz, criado a partir do `.env.example`.
 | `VITE_API_URL` | Caminho base da API para o frontend |
 | `VITE_PROXY_TARGET` | Alvo do proxy do Vite em desenvolvimento |
 
+Em **produção** o arquivo é outro: `.env.prod`, criado a partir do
+`.env.prod.example`, também fora do Git. Ele traz as mesmas variáveis acima
+(sem as `VITE_*`, que o frontend congela no build) mais estas:
+
+| Variável | Para que serve |
+|---|---|
+| `APP_ENV` | `production` liga o fail-fast, fecha `/docs` e bloqueia o seed |
+| `LOG_LEVEL` | Nível dos logs (`INFO` em produção) |
+| `DOMINIO` | Domínio que o Caddy atende. `:80` valida sem domínio, sem TLS |
+| `BACKUP_DIR` | Onde os backups são gravados na VPS antes de subir para o R2 |
+| `BACKUP_RETENCAO_DIAS` | Dias que as cópias locais sobrevivem (padrão 30) |
+| `RCLONE_REMOTE` / `RCLONE_BUCKET` | Remote e bucket do Cloudflare R2 |
+
+`POSTGRES_PORT`, `VITE_API_URL` e `VITE_PROXY_TARGET` **não existem em produção**:
+o Postgres não publica porta e o caminho da API é fixado em `/api` no build.
+
+---
+
+## Deploy em produção
+
+Produção usa um arquivo próprio, `docker-compose.prod.yml`. O de desenvolvimento
+continua exatamente como está.
+
+**Diferenças que importam:** só o Caddy publica porta (80/443) — backend e Postgres
+não publicam nenhuma; o React vai compilado, servido como arquivo estático, sem dev
+server; o uvicorn roda com workers e sem `--reload`; e nada de bind mount de código,
+que é o que torna o rollback confiável.
+
+### Arquitetura
+
+```
+Internet → :80/:443 → Caddy ─┬─ /          arquivos estáticos (React)
+                             ├─ /api/*     backend:8000
+                             └─ /media/*   backend:8000
+                                              ↓ rede interna
+                                           PostgreSQL (sem porta pública)
+```
+
+Duas redes: `edge` (Caddy ↔ backend) e `interna` (backend ↔ banco, com
+`internal: true`). O Caddy **não alcança o Postgres**.
+
+### Primeira subida
+
+```bash
+# 1. Na VPS: Docker instalado, firewall liberando só 22, 80 e 443
+sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+
+# 2. DNS: registro A do domínio → IP da VPS, e ESPERE propagar.
+#    Subir antes disso faz o Let's Encrypt falhar, e tentativas repetidas
+#    batem no limite semanal.
+
+# 3. Código e configuração
+git clone <repositório> /opt/futebol_quinta && cd /opt/futebol_quinta
+cp .env.prod.example .env.prod
+nano .env.prod          # preencha tudo; instruções estão no próprio arquivo
+chmod 600 .env.prod
+
+# 4. Suba
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+# 5. Crie o administrador (uma única vez)
+docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  exec backend python -m app.cli create-admin
+#    Depois disso você pode remover ADMIN_PASSWORD do .env.prod:
+#    o hash já está no banco.
+
+# 6. Verifique
+./scripts/smoke.sh https://seudominio.com.br
+
+# 7. Instale o backup e RODE UM RESTORE DE TESTE agora, não depois
+crontab -e   # 0 3 * * * cd /opt/futebol_quinta && ./scripts/backup.sh >> /var/log/migue-backup.log 2>&1
+./scripts/backup.sh
+./scripts/restore.sh /var/backups/migue/db-*.dump /var/backups/migue/media-*.tar.gz
+```
+
+**Sem domínio ainda?** Use `DOMINIO=:80` no `.env.prod`. O Caddy serve por HTTP sem
+tentar certificado, e você valida a stack inteira — build estático, fallback de SPA,
+proxy, migrations, admin, smoke tests. Quando o domínio existir, troque a variável e
+suba de novo.
+
+### A aplicação recusa iniciar se a configuração estiver insegura
+
+Com `APP_ENV=production`, o backend **não sobe** se `SECRET_KEY`, `DATABASE_URL` ou
+`CORS_ORIGINS` estiverem ausentes ou com valor de exemplo. É proposital: um site fora
+do ar chama atenção na hora; um site no ar com a chave de exemplo do repositório, não.
+
+Em produção `/docs`, `/redoc` e `/openapi.json` também ficam fechados, e o comando
+`seed` recusa rodar.
+
+### Atualização
+
+```bash
+./scripts/backup.sh                                    # o bilhete de volta vem primeiro
+git pull
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#   as migrations pendentes são aplicadas sozinhas pelo entrypoint
+./scripts/smoke.sh https://seudominio.com.br
+```
+
+Alguns segundos de indisponibilidade enquanto o backend reinicia.
+
+### Rollback
+
+```bash
+git checkout <sha-anterior>
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+Se a atualização incluía migration que apagou dado, o caminho é o dump feito antes:
+
+```bash
+./scripts/restore.sh <dump> <tar> --producao
+```
+
+**É por isso que o backup vem antes do deploy.** Rollback de código é trivial; de
+migration destrutiva, não.
+
+### Backup
+
+Roda todo dia às 3h e envia para o **Cloudflare R2** via `rclone` — outro provedor,
+outra conta. Volume Docker não é backup: ele morre junto com a VPS.
+
+Salva **as duas coisas**: o banco (`pg_dump -Fc`) e as fotos (`tar` do volume). Um dump
+do Postgres sozinho não bastaria — ele guarda os *caminhos* das fotos, não os arquivos.
+
+```bash
+rclone config          # uma vez: remote "r2" apontando para o bucket
+./scripts/backup.sh    # manual, quando quiser
+./scripts/restore.sh <dump> <tar>              # restaura em banco descartável e valida
+./scripts/restore.sh <dump> <tar> --producao   # restaura de verdade; pede confirmação
+```
+
+O restore de teste confere tabelas, revisão do Alembic, contagens de jogadores,
+partidas e participações, uma partida conhecida e se toda foto referenciada no banco
+existe no arquivo. **Rode-o a cada trimestre** — backup nunca restaurado é suposição,
+não garantia.
+
+### Observabilidade
+
+Logs com nível controlável por `LOG_LEVEL` e rotação no Docker (10 MB × 3 por
+container). Para saber que caiu, aponte um monitor externo gratuito para
+`https://seudominio/api/health` — externo de propósito, porque monitoramento no mesmo
+host cai junto com ele. Esse endpoint consulta o banco de verdade, então ele acusa
+Postgres fora do ar, não só processo morto.
+
 ---
 
 ## Estrutura
 
 ```
 futebol_quinta/
-├── docker-compose.yml       db + backend + frontend
+├── docker-compose.yml       desenvolvimento: db + backend + frontend
+├── docker-compose.prod.yml  produção: db + backend + Caddy
 ├── .env.example             modelo de configuração (versionado)
+├── .env.prod.example        modelo de configuração de produção (versionado)
+├── docs/design/             telas de referência do projeto
+├── scripts/                 backup.sh, restore.sh, smoke.sh
 ├── backend/
 │   ├── app/
 │   │   ├── core/            configuração, segurança, erros
@@ -212,6 +363,8 @@ futebol_quinta/
 │   ├── alembic/versions/    migrations
 │   └── tests/
 └── frontend/
+    ├── Dockerfile.prod      build estático + Caddy
+    ├── Caddyfile            HTTPS, proxy e fallback de SPA
     └── src/
         ├── api/             cliente HTTP — nenhum componente chama fetch direto
         ├── components/      layout, comuns e um diretório por domínio
@@ -257,6 +410,6 @@ diretamente — tudo passa por `src/api/client.ts`.
 | 8 | Dashboard e gráficos | ✅ |
 | 9 | Rankings | ✅ |
 | 10 | Histórico e detalhes da partida | ✅ |
-| 11 | Refino visual e responsividade | — |
-| 12 | Testes das regras de negócio | — |
+| 11 | Preparação para produção e deploy | ✅ |
+| 12 | Refino visual, responsividade e testes de frontend | — |
 | 13 | Documentação final | — |

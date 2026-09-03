@@ -10,8 +10,10 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routers import auth, dashboard, health, matches, players, rankings, seasons
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
+from app.core.logging_config import configurar_logs
 from app.core.security import secret_key_is_weak
 
+configurar_logs()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -21,9 +23,11 @@ app = FastAPI(
         "API de estatísticas da pelada. Leitura é pública; "
         "escrita exige o administrador autenticado."
     ),
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    # Fechados em producao: nao vazam dado e a escrita exige token, mas
+    # entregam o mapa da API.
+    docs_url="/docs" if settings.docs_habilitados else None,
+    redoc_url="/redoc" if settings.docs_habilitados else None,
+    openapi_url="/openapi.json" if settings.docs_habilitados else None,
 )
 
 app.add_middleware(
@@ -36,8 +40,8 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
-# Alerta, não falha: travar a inicialização atrapalharia o desenvolvimento sem
-# impedir nada de verdade. Em produção quem resolve é o gerenciador de segredos.
+# Em produção, chave fraca já impediu o arranque em core.config. Aqui sobra
+# apenas o aviso para quem desenvolve com o valor padrão.
 if secret_key_is_weak():
     logger.warning(
         "SECRET_KEY fraca (valor padrão ou com menos de 32 caracteres). "

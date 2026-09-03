@@ -1,0 +1,135 @@
+# SÓ NO MIGUÉ FC — produção.
+#
+# Arquivo separado do docker-compose.yml de desenvolvimento, não um override:
+# o de dev continua funcionando exatamente como está.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Diferenças que importam em relação ao dev:
+#   - só o Caddy publica porta (80/443). Backend e Postgres não publicam nada.
+#   - nenhum bind mount de código: tudo vem da imagem, que é o que torna o
+#     rollback confiável.
+#   - sem --reload, com workers.
+#   - duas redes; a interna não tem rota para fora.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: migue_db_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    # Sem `ports`: o banco só existe dentro da rede interna.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - interna
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  backend:
+    build: ./backend
+    container_name: migue_backend_prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-720}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      # ADMIN_PASSWORD entra só na hora de rodar create-admin e pode sair
+      # do .env.prod depois: o hash fica no banco.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      MEDIA_ROOT: /app/media
+      MEDIA_URL_PREFIX: /media
+      CURRENT_SEASON: ${CURRENT_SEASON}
+      TZ: ${TZ}
+    # Sem --reload, com workers. --proxy-headers faz o FastAPI enxergar o IP
+    # e o esquema reais que o Caddy repassa.
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0 --port 8000
+      --workers 2
+      --proxy-headers --forwarded-allow-ips=*
+    volumes:
+      # Só as fotos. O código vem da imagem.
+      - media_data:/app/media
+    networks:
+      - edge
+      - interna
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        # Build-time: o Vite congela este valor dentro do bundle.
+        VITE_API_URL: /api
+    container_name: migue_web_prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOMINIO: ${DOMINIO}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Os certificados. Sem persistir, cada recriação pediria certificado
+      # novo e bateria no limite semanal do Let's Encrypt.
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  # web <-> backend
+  edge:
+  # backend <-> db. internal: true remove a rota para a internet — e o web
+  # não participa dela, então não alcança o Postgres nem por engano.
+  interna:
+    internal: true
+
+volumes:
+  # Sem `name:` fixo de propósito: o Compose prefixa com o nome do projeto,
+  # então a stack de produção nunca compartilha volume com a de dev.
+  pgdata:
+  media_data:
+  caddy_data:
+  caddy_config:

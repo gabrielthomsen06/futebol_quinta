@@ -15,6 +15,7 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.enums import MatchStatus, PlayerStatus
 from app.models.match import Match
 from app.services import match_service, player_service
@@ -75,6 +76,12 @@ def seed(session: Session) -> str:
     Recusa rodar se já existir partida: o objetivo é dar um ponto de partida
     num banco vazio, nunca misturar exemplo com dado de verdade.
     """
+    if settings.is_production:
+        raise RuntimeError(
+            "O seed cria jogadores e partidas ficticios e nao roda em producao. "
+            "Se voce quer mesmo popular este banco, faca isso pela interface."
+        )
+
     if ja_populado(session):
         raise RuntimeError(
             "O banco já tem partidas. O seed só roda em base vazia, para não "

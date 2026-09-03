@@ -1,0 +1,45 @@
+# Imagem de produção do frontend: compila o React e serve com o Caddy.
+#
+# O Dockerfile de desenvolvimento continua ao lado, com o dev server do Vite.
+# Este aqui não roda Vite nenhum — só entrega arquivos prontos.
+
+# ---------------------------------------------------------------------------
+# Estágio 1: compila
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# npm ci, não npm install: respeita o package-lock.json e falha se ele estiver
+# fora de sincronia. Build de produção não é lugar para resolver versão.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# VITE_API_URL é substituída pelo Vite DENTRO do bundle, em tempo de build —
+# não é lida em execução. Passar como variável de ambiente do container não
+# teria efeito nenhum.
+#
+# "/api" é o valor certo porque frontend e API compartilham o domínio. O
+# código tem esse mesmo fallback, mas passamos explícito: configuração
+# implícita é o que ninguém lembra seis meses depois.
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+
+# O script build roda `tsc --noEmit` antes do vite build: erro de tipo
+# impede a imagem de existir.
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Estágio 2: serve
+# ---------------------------------------------------------------------------
+FROM caddy:2-alpine
+
+COPY --from=build /app/dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80 443
+
+# A imagem final não tem Node, nem node_modules, nem código-fonte —
+# só os arquivos estáticos e o Caddy.

@@ -20,7 +20,7 @@ from functools import cache
 import bcrypt
 import jwt
 
-from app.core.config import settings
+from app.core.config import SEGREDO_DE_DESENVOLVIMENTO, TAMANHO_MINIMO_DA_CHAVE, settings
 
 ALGORITHM = "HS256"
 
@@ -159,6 +159,6 @@ def decode_access_token(token: str) -> uuid.UUID:
 def secret_key_is_weak() -> bool:
     """Segredo padrão ou curto demais para assinar token com segurança."""
     return (
-        settings.secret_key == "inseguro-apenas-para-desenvolvimento"
-        or len(settings.secret_key) < 32
+        settings.secret_key == SEGREDO_DE_DESENVOLVIMENTO
+        or len(settings.secret_key) < TAMANHO_MINIMO_DA_CHAVE
     )
