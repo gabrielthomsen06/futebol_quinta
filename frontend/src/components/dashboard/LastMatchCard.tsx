@@ -1,15 +1,13 @@
 import { Trophy } from 'lucide-react'
+import { Link } from 'react-router-dom'
+
+import { Button } from '@/components/ui/button'
 
 import { formatarData } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Match } from '@/types/api'
 
-/**
- * A última partida realizada.
- *
- * Sem "Ver detalhes" nesta fase: `/partidas/:id` só existe de verdade na Fase
- * 10, e um botão que leva a um placeholder é pior que botão nenhum.
- */
+/** A última partida realizada, com o caminho para os detalhes dela. */
 export function LastMatchCard({ partida }: { partida: Match | null }) {
   return (
     <section className="rounded-card border border-border bg-card p-5">
@@ -39,6 +37,12 @@ export function LastMatchCard({ partida }: { partida: Match | null }) {
             <span className="flex-1 font-display text-lg uppercase tracking-wide">
               {partida.team_2_name}
             </span>
+          </div>
+
+          <div className="mt-5 flex justify-center">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/partidas/${partida.id}`}>Ver detalhes</Link>
+            </Button>
           </div>
         </>
       )}

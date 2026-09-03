@@ -72,8 +72,8 @@ export function MatchFormPage() {
       } else {
         const criada = await criar.mutateAsync(dados)
         toast.success('Partida criada')
-        // Na Fase 10 este destino passa a ser a página de detalhes.
-        navigate(`/partidas/${criada.id}/editar`, { replace: true })
+        // A pessoa acabou de montar a partida: o natural é ver como ficou.
+        navigate(`/partidas/${criada.id}`, { replace: true })
       }
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar a partida.')

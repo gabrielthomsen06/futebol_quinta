@@ -18,26 +18,48 @@ from app.schemas.match import (
     MatchWrite,
     ParticipationRead,
 )
-from app.services import match_service
+from app.services import match_service, stats_service
 from app.services.match_service import ParticipantInput
 
 router = APIRouter(prefix="/matches", tags=["partidas"])
 
 
-@router.get("", response_model=MatchListRead, summary="Lista partidas")
+@router.get(
+    "",
+    response_model=MatchListRead,
+    summary="Lista partidas",
+    responses={400: {"description": "Recorte de período inválido ou combinado"}},
+)
 def list_matches(
     session: SessionDep,
-    status: Annotated[MatchStatus | None, Query(description="Filtra por status")] = None,
+    status_filtro: Annotated[
+        MatchStatus | None, Query(alias="status", description="Filtra por status")
+    ] = None,
+    season: Annotated[
+        int | None,
+        Query(description="Ano inteiro. Exclusivo com month e com o intervalo de datas."),
+    ] = None,
+    month: Annotated[
+        str | None,
+        Query(description="AAAA-MM. Exclusivo com season e com o intervalo de datas."),
+    ] = None,
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> MatchListRead:
+    # Mesma função que os rankings usam desde a Fase 9: temporada, mês e
+    # intervalo viram um par de datas no servidor, com as mesmas mensagens de
+    # erro. Nada de reimplementar aritmética de calendário.
+    inicio, fim = stats_service.resolver_periodo(
+        season=season, month=month, date_from=date_from, date_to=date_to
+    )
+
     matches, total = match_service.list_matches(
         session,
-        statuses=[status] if status else None,
-        date_from=date_from,
-        date_to=date_to,
+        statuses=[status_filtro] if status_filtro else None,
+        date_from=inicio,
+        date_to=fim,
         limit=limit,
         offset=offset,
     )
@@ -47,7 +69,6 @@ def list_matches(
         limit=limit,
         offset=offset,
     )
-
 
 @router.get(
     "/{match_id}", response_model=MatchDetailRead, summary="Detalhe de uma partida"

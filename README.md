@@ -5,9 +5,9 @@
 Aplicação web de estatísticas da pelada de quinta-feira. O site é público para
 consulta; só o administrador registra partidas e jogadores.
 
-> **Estado atual: Fase 9 concluída — rankings.**
-> Jogadores, partidas, dashboard e rankings com filtros de temporada, mês e período.
-> Falta o histórico público e os detalhes da partida, na Fase 10.
+> **Estado atual: Fase 10 concluída — todas as telas públicas prontas.**
+> Início, rankings, histórico, detalhes da partida, jogadores e perfil, mais o CRUD
+> administrativo. Faltam o refino final, os testes de frontend e a documentação.
 
 ---
 
@@ -256,7 +256,7 @@ diretamente — tudo passa por `src/api/client.ts`.
 | 7 | Partidas | ✅ |
 | 8 | Dashboard e gráficos | ✅ |
 | 9 | Rankings | ✅ |
-| 10 | Histórico e detalhes da partida | — |
+| 10 | Histórico e detalhes da partida | ✅ |
 | 11 | Refino visual e responsividade | — |
 | 12 | Testes das regras de negócio | — |
 | 13 | Documentação final | — |

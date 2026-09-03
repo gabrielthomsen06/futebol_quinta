@@ -39,9 +39,17 @@ def list_matches(
     Como duas partidas podem dividir a mesma data, created_at desempata para
     a ordenação ser determinística.
     """
-    stmt = select(Match).options(*_with_participants())
+    # Sem eager loading: a listagem serializa MatchRead, que nao tem
+    # participacoes. Carrega-las seria buscar dezenas de linhas por pagina
+    # para descarta-las na serializacao. get_match() mantem o carregamento.
+    stmt = select(Match)
     stmt = _apply_filters(stmt, statuses, date_from, date_to)
-    stmt = stmt.order_by(Match.match_date.desc(), Match.created_at.desc())
+    # O id desempata: sem ele, partidas com a mesma data e o mesmo created_at
+    # (as do seed, criadas numa transacao so) teriam ordem indefinida e a
+    # paginacao repetiria ou puliria registros entre as paginas.
+    stmt = stmt.order_by(
+        Match.match_date.desc(), Match.created_at.desc(), Match.id.desc()
+    )
     stmt = stmt.limit(limit).offset(offset)
     return list(session.scalars(stmt).unique())
 

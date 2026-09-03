@@ -1,16 +1,36 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as matchesApi from '@/api/matches'
+import { PARTIDAS_POR_PAGINA, type FiltroDeHistorico } from '@/api/matches'
 import { invalidateDerivedData } from '@/lib/invalidate'
+import { chaveDoPeriodo } from '@/lib/period'
 import { queryKeys } from '@/lib/queryClient'
 import type { MatchWrite } from '@/types/api'
 
-export function useMatches(limit = 50) {
-  return useQuery({
-    queryKey: queryKeys.matchList(`limit-${limit}`),
-    queryFn: () => matchesApi.listMatches(limit),
+/**
+ * O histórico, paginado por "carregar mais".
+ *
+ * **A chave carrega status e período.** Sem os dois, "Realizadas de agosto" e
+ * "Todas de 2026" compartilhariam as mesmas páginas em cache e a segunda tela
+ * mostraria os itens da primeira. Como a chave muda junto com o filtro, trocar
+ * de filtro é outra query — que começa naturalmente em offset 0.
+ */
+export function useMatchHistory(filtro: FiltroDeHistorico) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.matchList(
+      `${filtro.status ?? 'todas'}:${chaveDoPeriodo(filtro.periodo)}`,
+    ),
+    queryFn: ({ pageParam }) => matchesApi.listMatches(filtro, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (ultima, todas) => {
+      const carregadas = todas.reduce((soma, p) => soma + p.items.length, 0)
+      // Para quando alcançar o total **deste** filtro.
+      return carregadas < ultima.total ? carregadas : undefined
+    },
   })
 }
+
+export { PARTIDAS_POR_PAGINA }
 
 export function useMatch(id: string, enabled = true) {
   return useQuery({
@@ -21,11 +41,9 @@ export function useMatch(id: string, enabled = true) {
 }
 
 /**
- * Invalida partidas **e jogadores**.
+ * Invalida partidas, jogadores, dashboard e rankings.
  *
- * Mexer numa partida muda a estatística de todo mundo que jogou nela: gols,
- * jogos, vitórias. Invalidar só 'matches' deixaria a página de jogadores
- * mostrando número velho até o cache expirar.
+ * Mexer numa partida muda a estatística de todo mundo que jogou nela.
  */
 function useInvalidarPartidas() {
   const queryClient = useQueryClient()
