@@ -11,6 +11,7 @@ atenção na hora; um site no ar com a chave de exemplo do repositório, não.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PRODUCAO = "production"
@@ -22,6 +23,14 @@ _SENHAS_DE_EXEMPLO = frozenset(
     {"troque-esta-senha", "gere-uma-chave-aleatoria-e-longa", "changeme", "admin", "migue"}
 )
 TAMANHO_MINIMO_DA_CHAVE = 32
+
+# O Heroku injeta DATABASE_URL no formato "postgres://" — um esquema que o
+# SQLAlchemy 2.0 não conhece mais. E mesmo "postgresql://" cairia no psycopg2,
+# que não é a dependência deste projeto. Por isso a URL é normalizada em
+# execução, e não à mão: o Heroku reescreve a variável sozinho toda vez que
+# rotaciona a credencial do banco.
+_DRIVER = "postgresql+psycopg"
+_ESQUEMAS_A_NORMALIZAR = ("postgres://", "postgresql://")
 
 
 class ConfiguracaoInsegura(RuntimeError):
@@ -47,6 +56,12 @@ class Settings(BaseSettings):
 
     # ---------- Banco ----------
     database_url: str = "postgresql+psycopg://migue:migue@db:5432/migue"
+    # O plano Essential-0 do Heroku Postgres aceita ~20 conexões no total, e
+    # cada worker do uvicorn tem o seu próprio pool. Com 2 workers, o teto
+    # abaixo dá 2 x (3+2) = 10 conexões — sobra folga para a release phase,
+    # para `heroku run` e para um psql aberto na mão.
+    db_pool_size: int = 3
+    db_max_overflow: int = 2
 
     # ---------- Segurança ----------
     secret_key: str = SEGREDO_DE_DESENVOLVIMENTO
@@ -62,10 +77,55 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     # ---------- Fotos ----------
+    # "local" grava em disco (desenvolvimento); "r2" grava no Cloudflare R2.
+    # O padrão continua sendo o disco: quem muda isso é o ambiente do Heroku,
+    # onde o sistema de arquivos do dyno é apagado a cada deploy e restart.
+    storage_backend: str = "local"
     media_root: Path = Path("/app/media")
     media_url_prefix: str = "/media"
     max_photo_bytes: int = 5 * 1024 * 1024
     photo_size: int = 512
+
+    # ---------- Cloudflare R2 (só quando storage_backend="r2") ----------
+    r2_endpoint_url: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = ""
+    # Domínio público do bucket, se houver. Vazio faz a aplicação assinar uma
+    # URL temporária a cada acesso — funciona com o bucket fechado, que é o
+    # padrão seguro.
+    r2_public_base_url: str = ""
+    r2_url_expira_em: int = 3600
+
+    # ---------- Frontend embutido ----------
+    # Diretório com o React já compilado. Vazio (desenvolvimento) mantém a API
+    # sozinha, com o Vite servindo o frontend em outra porta.
+    static_root: Path | None = None
+
+    # ---------- Proxy ----------
+    # O roteador do Heroku termina o TLS e repassa em HTTP, então quem precisa
+    # redirecionar para HTTPS é a aplicação, lendo o X-Forwarded-Proto.
+    force_https: bool = False
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _normalizar_url_do_banco(cls, url: str) -> str:
+        """Aceita a URL como o Heroku a entrega e devolve a que o projeto usa.
+
+        `sslmode=require` só é acrescentado quando o esquema veio como
+        "postgres://", que na prática é a assinatura da variável injetada pelo
+        Heroku. Sem isso, a negociação de TLS ficaria a cargo do padrão do
+        psycopg (`prefer`), que aceitaria silenciosamente uma conexão em claro.
+        """
+        url = url.strip()
+        for esquema in _ESQUEMAS_A_NORMALIZAR:
+            if url.startswith(esquema):
+                url = f"{_DRIVER}://{url[len(esquema):]}"
+                if esquema == "postgres://" and "sslmode=" not in url:
+                    separador = "&" if "?" in url else "?"
+                    url = f"{url}{separador}sslmode=require"
+                break
+        return url
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -84,6 +144,23 @@ class Settings(BaseSettings):
         desenvolvimento.
         """
         return not self.is_production
+
+    @property
+    def usa_r2(self) -> bool:
+        return self.storage_backend.strip().lower() == "r2"
+
+    @property
+    def spa_dir(self) -> Path | None:
+        """Diretório do React compilado, se ele existir de fato.
+
+        Devolver None quando o caminho não existe evita que a aplicação suba
+        com um mount apontando para o vazio — o sintoma seria um 404 em toda
+        rota do frontend, difícil de ligar à causa.
+        """
+        if self.static_root is None:
+            return None
+        raiz = Path(self.static_root)
+        return raiz if (raiz / "index.html").is_file() else None
 
 
 def _validar_producao(settings: Settings) -> None:
@@ -117,12 +194,32 @@ def _validar_producao(settings: Settings) -> None:
     elif "*" in settings.cors_origins:
         problemas.append('CORS_ORIGINS não pode ser "*" em produção.')
 
+    # Storage em disco num dyno do Heroku é uma armadilha silenciosa: funciona
+    # no teste manual e some no deploy seguinte, deixando o banco apontando
+    # para arquivos que não existem mais. Melhor não subir.
+    if settings.usa_r2:
+        faltando = [
+            nome
+            for nome, valor in (
+                ("R2_ENDPOINT_URL", settings.r2_endpoint_url),
+                ("R2_ACCESS_KEY_ID", settings.r2_access_key_id),
+                ("R2_SECRET_ACCESS_KEY", settings.r2_secret_access_key),
+                ("R2_BUCKET", settings.r2_bucket),
+            )
+            if not valor.strip()
+        ]
+        if faltando:
+            problemas.append(
+                f"STORAGE_BACKEND=r2 mas faltam: {', '.join(faltando)}."
+            )
+
     if problemas:
         lista = "\n".join(f"  - {p}" for p in problemas)
         raise ConfiguracaoInsegura(
             "A aplicação recusou iniciar porque APP_ENV=production e a "
             f"configuração está insegura:\n{lista}\n"
-            "Corrija o .env.prod e suba de novo."
+            "Corrija a configuração do ambiente "
+            "(.env.prod na VPS ou heroku config:set no Heroku) e suba novamente."
         )
 
 

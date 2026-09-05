@@ -22,6 +22,9 @@ dependencies = [
     # Upload de fotos (Fase 6).
     "python-multipart>=0.0.12",
     "pillow>=11.0",
+    # Armazenamento das fotos no Cloudflare R2 (Fase 12). O R2 fala o
+    # protocolo do S3, então o cliente é o mesmo da AWS.
+    "boto3>=1.35",
 ]
 
 [project.optional-dependencies]

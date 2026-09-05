@@ -1,0 +1,28 @@
+# O build do Heroku envia a raiz inteira como contexto. Sem isto, o .git e os
+# node_modules iriam junto e o deploy ficaria lento à toa.
+.git
+.gitignore
+.gitattributes
+.env
+.env.*
+**/node_modules
+**/dist
+**/.vite
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/*.egg-info
+**/.venv
+**/venv
+backend/media
+backend/tests
+# Entrypoint da arquitetura da Fase 11 (VPS): ele rodava as migrations antes
+# do uvicorn. No Heroku quem faz isso é a release phase do heroku.yml, e o
+# Dockerfile da raiz não define ENTRYPOINT nenhum. Deixá-lo entrar na imagem
+# só criaria um arquivo com cara de autoritativo que ninguém executa.
+backend/docker-entrypoint.sh
+docs
+README.md
+docker-compose.yml
+docker-compose.prod.yml

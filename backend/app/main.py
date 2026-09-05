@@ -5,12 +5,27 @@ import mimetypes
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import auth, dashboard, health, matches, players, rankings, seasons
+from app.api.routers import (
+    auth,
+    dashboard,
+    health,
+    matches,
+    media,
+    players,
+    rankings,
+    seasons,
+)
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import configurar_logs
+from app.core.middleware import (
+    ForceHTTPSMiddleware,
+    SecurityHeadersMiddleware,
+    SPAStaticFiles,
+)
 from app.core.security import secret_key_is_weak
 
 configurar_logs()
@@ -38,6 +53,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# A partir daqui, o que o Caddy fazia e o roteador do Heroku não faz.
+# `add_middleware` empilha de dentro para fora: o último acrescentado é o
+# primeiro a ver a requisição, e é por isso que o redirecionamento para HTTPS
+# vem por último — nada deve acontecer antes dele.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(SecurityHeadersMiddleware)
+if settings.force_https:
+    app.add_middleware(ForceHTTPSMiddleware)
+
 register_exception_handlers(app)
 
 # Em produção, chave fraca já impediu o arranque em core.config. Aqui sobra
@@ -64,24 +88,38 @@ app.include_router(api_router)
 # de digitar /health direto. Fora do schema para não duplicar no Swagger.
 app.include_router(health.router, include_in_schema=False)
 
-# As fotos dos jogadores são servidas do volume. Em produção isso passaria para
-# um nginx/CDN sem tocar no banco, já que só o caminho relativo é persistido.
-settings.media_root.mkdir(parents=True, exist_ok=True)
-# Nem todo sistema conhece .webp; sem isto o StaticFiles serve as fotos como
-# application/octet-stream, e cache e proxies deixam de tratá-las como imagem.
-mimetypes.add_type("image/webp", ".webp")
-app.mount(
-    settings.media_url_prefix,
-    StaticFiles(directory=settings.media_root),
-    name="media",
-)
+# As fotos dos jogadores. Em desenvolvimento vêm do volume, servidas daqui
+# mesmo; no Heroku vêm do Cloudflare R2, e a rota abaixo só redireciona — o
+# banco continua guardando apenas o caminho relativo, nos dois casos.
+if settings.usa_r2:
+    app.include_router(media.router, prefix=settings.media_url_prefix)
+else:
+    settings.media_root.mkdir(parents=True, exist_ok=True)
+    # Nem todo sistema conhece .webp; sem isto o StaticFiles serve as fotos
+    # como application/octet-stream, e cache e proxies deixam de tratá-las
+    # como imagem.
+    mimetypes.add_type("image/webp", ".webp")
+    app.mount(
+        settings.media_url_prefix,
+        StaticFiles(directory=settings.media_root),
+        name="media",
+    )
 
+# O React compilado, quando ele vem junto na imagem (é o caso no Heroku, onde
+# a aplicação é uma só). Montado por último de propósito: as rotas de API e de
+# mídia já estão registradas e continuam ganhando desta.
+_spa = settings.spa_dir
 
-@app.get("/", include_in_schema=False)
-def root() -> dict[str, str]:
-    return {
-        "app": settings.app_name,
-        "version": settings.app_version,
-        "docs": "/docs",
-        "health": "/api/health",
-    }
+if _spa is None:
+
+    @app.get("/", include_in_schema=False)
+    def root() -> dict[str, str]:
+        return {
+            "app": settings.app_name,
+            "version": settings.app_version,
+            "docs": "/docs",
+            "health": "/api/health",
+        }
+
+else:
+    app.mount("/", SPAStaticFiles(_spa), name="spa")

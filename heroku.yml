@@ -1,0 +1,26 @@
+# Deploy do SÓ NO MIGUÉ FC no Heroku, pelo container stack.
+#
+# Buildpacks não servem aqui: o Heroku builda a partir da raiz do repositório,
+# e nesta raiz não há requirements.txt nem package.json — o backend está em
+# backend/ e o frontend em frontend/. O container resolve isso sem duplicar
+# declaração de dependência em lugar nenhum.
+#
+#   heroku stack:set container
+
+build:
+  docker:
+    web: Dockerfile
+
+# As migrations saem do entrypoint e viram release phase. A diferença importa:
+# a release phase roda UMA vez (não uma por worker) e, se falhar, o release
+# não é promovido — a versão anterior continua no ar em vez de entrar um dyno
+# em loop de reinício.
+release:
+  image: web
+  command:
+    - alembic upgrade head
+
+# Repete o CMD da imagem de propósito: quando o heroku.yml traz um `run`, é
+# ele que vale, e deixar implícito seria contar com um padrão que ninguém lê.
+run:
+  web: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-2} --proxy-headers --forwarded-allow-ips='*'

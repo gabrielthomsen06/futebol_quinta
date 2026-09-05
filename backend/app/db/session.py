@@ -17,6 +17,12 @@ engine = create_engine(
     settings.database_url,
     # Derruba conexões que o banco fechou por inatividade antes de usá-las.
     pool_pre_ping=True,
+    # O limite do pool não é afinação de desempenho: é o que impede a
+    # aplicação de estourar o teto de conexões do plano do banco. Cada worker
+    # do uvicorn abre o seu próprio pool, então o total é multiplicado por
+    # eles. Ver a justificativa dos valores em core/config.py.
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
     future=True,
 )
 
